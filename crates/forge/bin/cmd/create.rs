@@ -194,12 +194,29 @@ impl CreateArgs {
                 };
 
                 let process_zk_output = |zk_output: &mut foundry_compilers::zksync::compile::output::ProjectCompileOutput| {
-                    let artifact =
-                        zk_output.remove_contract(&contract).expect("Artifact not found");
+                    let artifact = if let Some(artifact) = zk_output.remove_contract(&contract) {
+                        artifact
+                    } else {
+                        let mut err = format!("Artifact not found: `{contract}`");
+                        if let Some(suggestion) =
+                            super::did_you_mean(contract, zk_output.artifacts().map(|(name, _)| name)).pop()
+                        {
+                            if suggestion != contract {
+                                err = format!(
+                                    r#"{err}
+                
+                        Did you mean `{suggestion}`?"#
+                                );
+                            }
+                        }
+                        eyre::bail!(err)
+                    };
+                    
                     let ZkContractArtifact {
                         bytecode, hash, factory_dependencies, metadata, ..
                     } = artifact;
-
+                };
+                
                     // Get abi from solc_metadata
                     // TODO: This can probably be optimized by defining the proper
                     // deserializers on compilers but metadata is given as a stringified
